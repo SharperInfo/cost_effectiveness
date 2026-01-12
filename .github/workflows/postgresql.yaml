@@ -17,13 +17,13 @@ jobs:
           POSTGRES_DB: cost_effectiveness
           POSTGRES_PASSWORD: security_is_important
           POSTGRES_USER: cost_effectiveness
+        ports:
+          - 5432:5432
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-        ports:
-          - 5432:5432
 
     steps:
       - name: Checkout
@@ -36,6 +36,6 @@ jobs:
         run: psql --file setup.sql
         env:
           PGDATABASE: cost_effectiveness
-          PGHOST: postgres
+          PGHOST: localhost
           PGPASSWORD: security_is_important
           PGUSER: cost_effectiveness

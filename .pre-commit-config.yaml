@@ -23,4 +23,8 @@ repos:
     rev: 3.4.2
     hooks:
       - id: sqlfluff-lint
+        args:
+          - "--dialect=ansi"
       - id: sqlfluff-fix
+        args:
+          - "--dialect=ansi"
