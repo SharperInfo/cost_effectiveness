@@ -1,0 +1,41 @@
+name: PostgreSQL
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - "*"
+
+jobs:
+  postgresql:
+    name: Test PostgreSQL
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_DB: cost_effectiveness
+          POSTGRES_PASSWORD: security_is_important
+          POSTGRES_USER: cost_effectiveness
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.1
+      - name: Update packages
+        run: sudo apt-get update
+      - name: Install PostgreSQL client
+        run: sudo apt-get install --yes --no-install-recommends postgresql-client
+      - name: Run database creation script
+        run: psql --file setup.sql
+        env:
+          PGDATABASE: cost_effectiveness
+          PGHOST: localhost
+          PGPASSWORD: security_is_important
+          PGUSER: cost_effectiveness
