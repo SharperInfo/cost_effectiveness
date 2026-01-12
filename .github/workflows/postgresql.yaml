@@ -1,0 +1,37 @@
+name: PostgreSQL
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - "*"
+
+jobs:
+  postgresql:
+    name: Test PostgreSQL
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.1
+      - name: Install PostgreSQL client
+        run: |
+          apt-get update
+          apt-get install --yes --no-install-recommends postgresql-client
+      - name: Run database creation script
+        run: |
+          psql \
+            --host postgres \
+            --username cost_effectiveness \
+            --file setup.sql
+  
