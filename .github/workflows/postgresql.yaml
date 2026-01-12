@@ -13,6 +13,10 @@ jobs:
     services:
       postgres:
         image: postgres
+        env:
+          POSTGRES_DB: cost_effectiveness
+          POSTGRES_PASSWORD: security_is_important
+          POSTGRES_USER: cost_effectiveness
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -24,14 +28,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.1
+      - name: Update packages
+        run: sudo apt-get update
       - name: Install PostgreSQL client
-        run: |
-          apt-get update
-          apt-get install --yes --no-install-recommends postgresql-client
+        run: sudo apt-get install --yes --no-install-recommends postgresql-client
       - name: Run database creation script
-        run: |
-          psql \
-            --host postgres \
-            --username cost_effectiveness \
-            --file setup.sql
-  
+        run: psql --file setup.sql
+        env:
+          PGDATABASE: cost_effectiveness
+          PGHOST: postgres
+          PGPASSWORD: security_is_important
+          PGUSER: cost_effectiveness
