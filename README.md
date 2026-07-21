@@ -1,6 +1,6 @@
 # cost_effectiveness
 
-This is a work in progress. 
+This is a work in progress to replace the current CPUC CET database. 
 
 ## The current CPUC CET has a number of technical issues
 - It can only process one input at a time
