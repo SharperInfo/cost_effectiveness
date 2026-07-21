@@ -1,5 +1,5 @@
 create table measure (
-	ceinputid nvarchar(255) primary key,
+	CEInputID nvarchar(255) primary key,
 	PrgID nvarchar(255) not null,
 	ClaimYearQuarter CedarsYearQuarter not null,
 	Sector nvarchar(255) not null,
