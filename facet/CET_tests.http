@@ -1,16 +1,6 @@
 ### Test Root Endpoint
 GET http://127.0.0.1:8000/
 
-### Test Creating an Item
-POST http://127.0.0.1:8000/items
-Content-Type: application/json
-
-{
-    "name": "Sample Product",
-    "price": 29.99,
-    "tax": 0.2
-}
-
 ### Test Creating a Measure
 POST http://127.0.0.1:8000/measures
 Content-Type: application/json
