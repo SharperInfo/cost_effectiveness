@@ -1,0 +1,11 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Get the latest version tag from Astral's ruff-pre-commit repository
+    rev: v0.17.0
+    hooks:
+      # Run the linter and automatically fix safe violations (like unused imports)
+      - id: ruff-check
+        args: [ --fix ]
+      # Run the code formatter
+      - id: ruff-format
+
