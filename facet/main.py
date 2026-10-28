@@ -1,6 +1,5 @@
 from fastapi import FastAPI
-
-from models import Measure, Item
+from models import Item, Measure, ProgramCost
 
 app = FastAPI()
 
@@ -9,16 +8,16 @@ app = FastAPI()
 async def root():
     return {"message": "Hello World"}
 
-@app.get("/test/{input_integer}")
-async def root(input_integer: int):
-    return {
-            "input": input_integer,
-            "product_2": input_integer * 2,
-    }
 
 @app.post("/measures")
 async def create_measure(measure: Measure):
     return measure
+
+
+@app.post("/program_costs")
+async def create_program_cost(program_cost: ProgramCost):
+    return program_cost
+
 
 @app.post("/items/")
 async def create_item(item: Item):

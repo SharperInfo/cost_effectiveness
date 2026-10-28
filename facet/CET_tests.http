@@ -19,3 +19,25 @@ Content-Type: application/json
     "EUL_Yrs": 12,
     "Residential_Flag": true
 }
+
+### Test Creating a Program Cost
+POST http://127.0.0.1:8000/program_costs
+Content-Type: application/json
+
+{
+    "PrgID": "WEN",
+    "PrgYear": 2025,
+    "ClaimYearQuarter": "2025Q4",
+    "AdminCostsOverheadAndGA": 2132,
+    "AdminCostsOther": 0,
+    "MarketingOutreach": 622,
+    "DIActivity": 1291,
+    "DIInstallation": 0,
+    "DIHardwareAndMaterials": 0,
+    "DIRebateAndInspection": 0,
+    "EMV": 0,
+    "UserInputIncentive": 0,
+    "OnBillFinancing": 0,
+    "CostsRecoveredFromOtherSources": 0,
+    "PA": "PGE"
+}

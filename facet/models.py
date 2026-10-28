@@ -1,10 +1,8 @@
-"""Pydantic model for CET measure input records."""
+"""Pydantic models for CET input records (measures and program costs)."""
 
 from __future__ import annotations
 
-from typing import Any
-
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, Field
 
 
 class Item(BaseModel):
@@ -15,19 +13,7 @@ class Item(BaseModel):
 
 
 class Measure(BaseModel):
-    """One row of the measure input file.
-
-    Attributes are snake_case; each field's alias is the exact CSV header,
-    so rows from csv.DictReader validate directly and
-    ``model_dump(by_alias=True)`` round-trips back to the file's columns.
-    Blank cells are treated as missing (None).
-    """
-
-    model_config = ConfigDict(
-        populate_by_name=True,
-        str_strip_whitespace=True,
-        extra="forbid",
-    )
+    """One row of the measure input file."""
 
     # --- Identification / program ---
     ce_input_id: str = Field(alias="CEInputID")
@@ -155,13 +141,37 @@ class Measure(BaseModel):
     meas_inflation: float | None = Field(default=None, alias="MeasInflation")
     comments: str | None = Field(default=None, alias="Comments")
 
-    @model_validator(mode="before")
-    @classmethod
-    def _blank_to_none(cls, data: Any) -> Any:
-        """Treat empty / whitespace-only CSV cells as missing values."""
-        if isinstance(data, dict):
-            return {
-                k: (None if isinstance(v, str) and not v.strip() else v)
-                for k, v in data.items()
-            }
-        return data
+
+class ProgramCost(BaseModel):
+    """One row of the program cost input file."""
+
+    # --- Identification ---
+    prg_id: str = Field(alias="PrgID")
+    prg_year: int = Field(alias="PrgYear")
+    claim_year_quarter: str = Field(alias="ClaimYearQuarter", pattern=r"^\d{4}Q[1-4]$")
+    pa: str | None = Field(default=None, alias="PA")
+
+    # --- Administrative / marketing ---
+    admin_costs_overhead_and_ga: float | None = Field(
+        default=None, alias="AdminCostsOverheadAndGA"
+    )
+    admin_costs_other: float | None = Field(default=None, alias="AdminCostsOther")
+    marketing_outreach: float | None = Field(default=None, alias="MarketingOutreach")
+
+    # --- Direct implementation ---
+    di_activity: float | None = Field(default=None, alias="DIActivity")
+    di_installation: float | None = Field(default=None, alias="DIInstallation")
+    di_hardware_and_materials: float | None = Field(
+        default=None, alias="DIHardwareAndMaterials"
+    )
+    di_rebate_and_inspection: float | None = Field(
+        default=None, alias="DIRebateAndInspection"
+    )
+
+    # --- Other costs ---
+    emv: float | None = Field(default=None, alias="EMV")
+    user_input_incentive: float | None = Field(default=None, alias="UserInputIncentive")
+    on_bill_financing: float | None = Field(default=None, alias="OnBillFinancing")
+    costs_recovered_from_other_sources: float | None = Field(
+        default=None, alias="CostsRecoveredFromOtherSources"
+    )
