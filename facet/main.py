@@ -28,15 +28,39 @@ async def calculate_savings(measure: Measure):
         * (measure.unit_kwh_1st_baseline + measure.unit_kwh_iou_water_1st_baseline)
     )
 
-    AnnualNetTherms = (
+    LifecycleNetkWhSite = (
         measure.num_units
         * (measure.ntgr_therm + 0)
+        * measure.eul_yrs
+        * measure.installation_rate_kwh
+        * measure.realization_rate_kwh
+        * measure.unit_kwh_1st_baseline
+    )
+
+    LifecycleNetkWhWater = (
+        measure.num_units
+        * (measure.ntgr_therm + 0)
+        * measure.eul_yrs
+        * measure.installation_rate_kwh
+        * measure.realization_rate_kwh
+        * measure.unit_kwh_iou_water_1st_baseline
+    )
+
+    LifecycleNetTherms = (
+        measure.num_units
+        * (measure.ntgr_therm + 0)
+        * measure.eul_yrs
         * measure.installation_rate_therm
         * measure.realization_rate_therm
         * measure.unit_therm_1st_baseline
     )
 
-    return {"LifecycleNetkWh": LifecycleNetkWh, "AnnualNetTherms": AnnualNetTherms}
+    return {
+        "LifecycleNetkWh": LifecycleNetkWh,
+        "LifecycleNetkWhSite": LifecycleNetkWhSite,
+        "LifecycleNetkWhWater": LifecycleNetkWhWater,
+        "LifecycleNetTherms": LifecycleNetTherms,
+    }
 
 
 @app.post("/program_costs")
