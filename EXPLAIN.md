@@ -1,6 +1,6 @@
 # CalcSavings vs. the facet `Measure` and `ProgramCost` models
 
-How [`dbo.CalcSavings`](stored_procedures_v25.1/dbo.CalcSavings.StoredProcedure.sql) relates to the Pydantic models in [facet/models.py](facet/models.py).
+How [`dbo.CalcSavings`](stored_procedures_v25.1/dbo.CalcSavings.StoredProcedure.sql) relates to the Pydantic models in [facet/models.py](facet/models.py). It also covers what the other procedures `CalcAll` runs depend on, with more detail on `CalcEmissions`.
 
 ## Summary
 
@@ -28,6 +28,14 @@ The procedure's formulas depend on cleanup done earlier by `InitializeTables` ([
 | `eul_yrs`, `rul_yrs` | `EUL`, `RUL` | **If RUL ≥ EUL, then EUL is set to RUL and RUL to 0.** So RUL > 0 always means 0 < RUL < EUL. |
 
 That last rule is why dividing by `EUL` can never divide by zero.
+
+For example, `Qty` gets to `CalcSavings` like this:
+
+1. The caller's `NumUnits` column is exposed through `SourceMeasurevw`.
+2. For CEDARS sources, `MappingMeasurevw` renames it: `NumUnits Qty` ([InitializeTables:80](stored_procedures_v25.1/dbo.InitializeTables.StoredProcedure.sql#L80)).
+3. `InputMeasurevw` applies `ISNULL(Qty,0) Qty` ([InitializeTables:139](stored_procedures_v25.1/dbo.InitializeTables.StoredProcedure.sql#L139)).
+
+For other source types, `InitializeTables` doesn't regenerate `MappingMeasurevw`, so that view's existing definition in `CET_251` decides the mapping. That definition isn't in this repo.
 
 ### Step 2: The savings formulas
 
@@ -128,6 +136,84 @@ The `CedarsNumRange` constraints suggest this follows CPUC's CEDARS claim format
 - **RUL** (remaining useful life) applies to early replacement. It's how long the old equipment would have lasted. For those RUL years, savings are measured against the existing equipment (first baseline). For the remaining EUL − RUL years, they're measured against standard new equipment (second baseline). RUL = 0 means there is only one baseline.
 
 `ValidateInput` warns when RUL ≥ EUL, RUL > EUL/3, or the RUL and second-baseline savings don't agree. It only warns and doesn't fix anything; the swap in `InputMeasurevw` is the only thing that changes the values.
+
+## The other procedures `CalcAll` runs
+
+`CalcAll` runs `CalcCE`, `CalcSavings`, `CalcEmissions` (or `CalcEmissions2013` for 2013 avoided costs), then `CalcCost`. If the job's `CETJobs.SavingsOnly = 1`, it runs `CalcSavings` only.
+
+### What each one reads besides the measure inputs
+
+Every procedure reads `InputMeasurevw`. Each also reads `CETJobs.MarketEffectBens` / `MarketEffectCost`, but only when `@MEBens` / `@MECost` are NULL. `RunCET` passes `0.0` by default, so in practice that fallback doesn't fire.
+
+| Procedure | Reference data | Program costs | Output of another procedure |
+|---|---|---|---|
+| `CalcSavings` | None. Its only constant is the hardcoded `@ThermConv`. | No | No |
+| `CalcEmissions` | `E3EmissionsSourcevw` (electric CO2, NOx and PM10 per quarter)<br>`Settingsvw.CO2Gas`<br>`E3CombustionTypevw.NOxGas` | No | No |
+| `CalcCost` | `Settingsvw` (discount rates) | `InputProgramvw` | **Yes: `OutputCE`**, so it must run after `CalcCE` |
+| `CalcCE` | `AvoidedCostElecvw` / `AvoidedCostGasvw`<br>`E3RateScheduleElecvw` / `E3RateScheduleGasvw`<br>`Settingsvw` | `InputProgramvw` | No |
+| `CalcEmissions2013` | `E3Settings` (read directly), `E3EmissionsSource2013vw`, `E3CombustionTypevw`, `Settingsvw` | No | No. `RunCET` can't reach it, because `ValidateCETInputs` rejects version 2013. |
+
+The reference views are rebuilt for each run:
+
+- `InitializeTablesAvoidedCosts` builds `AvoidedCostSource*vw`, `E3RateScheduleSource*vw` and `E3EmissionsSourcevw`.
+- `InitializeSourceTables` builds `Settingsvw`.
+
+`AvoidedCostElecvw`, `AvoidedCostGasvw`, `E3RateSchedule*vw` and `E3CombustionTypevw` aren't defined anywhere in this repo. They're probably fixed views in `CET_251` built on top of the per-run views.
+
+### Suggested porting order
+
+1. **`CalcSavings`**, which needs only the measures.
+2. **`CalcEmissions`**, which needs the measures plus three reference lookups and nothing from other procedures.
+3. **`CalcCE`**, the largest. It needs avoided costs, rate schedules, discount rates and program costs.
+4. **`CalcCost`**, which depends on `CalcCE`'s results.
+
+### `CalcEmissions` in more detail
+
+Emissions are calculated from **measures only**. The procedure never reads `ProgramCost` or `InputProgramvw`. It writes one row per `CET_ID` to `OutputEmissions` and copies `PrgID` onto each row as a label.
+
+**Measure inputs:**
+
+| Purpose | `InputMeasurevw` columns | facet `Measure` field |
+|---|---|---|
+| Electric savings | `kWh1`, `kWh2`, with `NTGRkWh`, `IRkWh`, `RRkWh` | `unit_kwh_1st/2nd_baseline`, `ntgr_kwh`, `installation_rate_kwh`, `realization_rate_kwh` |
+| Gas savings | `Thm1`, `Thm2`, with `NTGRThm`, `IRThm`, `RRThm` | `unit_therm_1st/2nd_baseline`, `ntgr_therm`, `installation_rate_therm`, `realization_rate_therm` |
+| Quantity and life | `Qty`, `EUL`/`RUL`, `EULq`/`RULq` | `num_units`, `eul_yrs`, `rul_yrs` |
+| Install quarter | `Qtr`, converted to `Qidx = year × 4 + quarter` | `claim_year_quarter` |
+| Emission-rate key | `PA`, `TS`, `EU`, `CZ` | `pa`, `e3_target_sector`, `e3_mea_elec_end_use_shape`, `e3_climate_zone` |
+| Gas NOx rate | `E3CombustionTypevw`, joined on `CET_ID` | `combustion_type` |
+
+kW, water kWh and the added-load (`_AL`) columns aren't used. The added-load logic is commented out.
+
+When the source has no `CombustionType` column, `InitializeTables` uses `'Residential Furnaces (<0.3):Uncontrolled'` instead.
+
+**Electric emissions are calculated quarter by quarter.** For each measure, the procedure joins every row in `E3EmissionsSourcevw` with:
+
+- the same PA, sector, end use and climate zone
+- the same avoided-cost version
+- a quarter from the install quarter up to the end of EUL (`em1.Qidx >= im.Qidx AND em1.Qidx < im.Qidx + im.EULq`)
+
+In each quarter, it multiplies the applicable savings rate (first baseline, second baseline, or a fraction at the RUL/EUL boundaries) by that quarter's CO2, NOx or PM10 rate.
+
+- **First-year emissions** sum the first four quarters (`SeqQtr <= 4`).
+- **Lifecycle emissions** sum all quarters.
+
+In the end-use match, `res:DEER…` and `Non_res:DEER…` shapes are converted to a sector plus a bare end use, the same way the CEDARS mapping does it.
+
+**Gas emissions are claim-level formulas.** They use the same pattern as `CalcSavings`:
+
+```
+gas CO2 = Qty × (NTGRThm + @MEBens) × IRThm × RRThm × CO2Gas × savings
+gas NOx = Qty × (NTGRThm + @MEBens) × IRThm × RRThm × NOxGas × savings
+```
+
+The savings term is first-year or lifecycle therms, using the same single- and dual-baseline formulas as `CalcSavings`. `CO2Gas` comes from `Settingsvw`. `NOxGas` comes from `E3CombustionTypevw`, so it depends on the combustion type.
+
+**Quarters are calendar quarters, not FirstYear-shifted ones.** The emission rates are matched on calendar quarter (`Qidx` built from `Qtr`). The `Qac` shift that `InitializeTablesAvoidedCosts` applies for `FirstYear` affects the avoided-cost views only. `CalcEmissions` doesn't reference `Qac` or `FirstYear`. A port only needs the emission rates indexed by calendar quarter.
+
+**Where the base tables come from.** `E3EmissionsSourcevw` joins two tables:
+
+- **The electric avoided-cost table for the chosen version**, which provides `CO2`. Its name isn't hardcoded in any procedure. `RunCET` reads it from `dbo.CETAvoidedCostVersions.AVCElecTable`; to list the names, run `SELECT [Version], BaseYear, AVCElecTable, AVCGasTable FROM dbo.CETAvoidedCostVersions`. The only names hardcoded anywhere are the legacy `E3AvoidedCostElecSeq` / `E3AvoidedCostGasSeq` in `RunDB`.
+- **`E3Emissions`**, which provides `NOx` and `PM10`.
 
 ## Quirks to know before porting
 
