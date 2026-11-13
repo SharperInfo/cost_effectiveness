@@ -1,7 +1,9 @@
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
+
+from auth import require_user
 from models import Item, Measure, ProgramCost
 
-app = FastAPI()
+app = FastAPI(dependencies=[Depends(require_user)])
 
 THERM_CONVERSION = 29.307111111
 
