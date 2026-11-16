@@ -1,16 +1,25 @@
+# Login for every request below, read from facet/.env (see .env.example).
+@user = {{$dotenv CET_TEST_USER}}
+@password = {{$dotenv CET_TEST_PASSWORD}}
+
 ### Test Root Endpoint
 GET http://127.0.0.1:8000/
+Authorization: Basic {{user}}:{{password}}
 
 ### Test Version as URL Parameter
 GET http://127.0.0.1:8000/25.1/test_version
+Authorization: Basic {{user}}:{{password}}
 ###
 GET http://127.0.0.1:8000/ABC/test_version
+Authorization: Basic {{user}}:{{password}}
 ###
 GET http://127.0.0.1:8000/2026-02/test_version
+Authorization: Basic {{user}}:{{password}}
 
 
 ### Test Creating a Measure
 POST http://127.0.0.1:8000/measures
+Authorization: Basic {{user}}:{{password}}
 Content-Type: application/json
 
 {
@@ -30,6 +39,7 @@ Content-Type: application/json
 
 ### Test Creating a Measure (SCE VFD on unitary AC motor)
 POST http://127.0.0.1:8000/calculate_savings
+Authorization: Basic {{user}}:{{password}}
 Content-Type: application/json
 
 {
@@ -112,6 +122,7 @@ Content-Type: application/json
 
 ### Test Running Emissions Calculations
 POST http://127.0.0.1:8000/calculate_emissions
+Authorization: Basic {{user}}:{{password}}
 Content-Type: application/json
 
 {
@@ -194,6 +205,7 @@ Content-Type: application/json
 
 ### Test Creating a Program Cost
 POST http://127.0.0.1:8000/program_costs
+Authorization: Basic {{user}}:{{password}}
 Content-Type: application/json
 
 {
