@@ -205,3 +205,8 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Claude Code: personal files (shared rules and logs in .claude/ are committed)
+.claude/settings.local.json
+CLAUDE.local.md
+.claude/work/**/.active_component
