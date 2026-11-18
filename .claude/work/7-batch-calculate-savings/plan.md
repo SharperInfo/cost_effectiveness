@@ -1,7 +1,12 @@
 # Plan: calculate all savings for a list of measures
 
 Branch: `7-batch-calculate-savings` · Work folder: `.claude/work/7-batch-calculate-savings/`
-(after approval, copy this plan to `<work-folder>/plan.md` and log the decisions below in `<work-folder>/decisions.md`)
+Status: slices 1 and 2 done, not yet committed
+
+Deviations from the original plan:
+- 28 savings fields, not 30: CalcSavings has no lifecycle kW.
+- The regression test skips itself when `references/development_data` is missing, because that folder is gitignored.
+- The regression test now runs once per `cet_input_NN`/`cet_output_NN` pair (currently jobs 123297 and 123299) and reads market effects from each run receipt.
 
 ## Context
 
