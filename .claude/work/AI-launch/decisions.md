@@ -80,6 +80,20 @@ arriving before the hook existed. Added a CLAUDE.md fallback rule (Claude
 appends prompts itself when the hook isn't running), which also handles a
 teammate whose hook isn't working.
 
+**Hook implementation details (slice 2).**
+- Branch comes from `git symbolic-ref --short -q HEAD`, not
+  `rev-parse --abbrev-ref HEAD`, because the latter fails on a new branch with
+  no commits; detached HEAD falls back to `detached-<short sha>`.
+- The repo root comes from `git rev-parse --show-toplevel` on the hook's `cwd`,
+  so prompts sent from a subdirectory still land in `.claude/work/`.
+- A session's file is found by globbing `*_<session8>.md`, so a session
+  keeps appending to the file it started, even across midnight.
+- Any error is caught, reported on stderr only, and the hook exits 0: a
+  missing log entry is better than a blocked prompt. The session-start check
+  in CLAUDE.md catches a hook that's silently failing.
+- The git calls are written inline rather than through a `run_git` helper,
+  following the team rule against small single-purpose helpers.
+
 **Precedence line instead of editing the global CLAUDE.md.** Reason: every
 teammate may have their own global file; a repo-level "these win on conflict"
 line resolves path conflicts for everyone without touching personal config.

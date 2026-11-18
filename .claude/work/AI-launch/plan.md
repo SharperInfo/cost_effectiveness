@@ -2,7 +2,7 @@
 
 Branch: `AI-launch` (work started on `cet_prototyping_01` and moved here
 before the first commit on 2026-11-18; the work folder was renamed to match)
-Status: slice 1 done; slice 2 (prompt-logging hook) next
+Status: slices 1 and 2 done; slice 1 committed
 
 ## Goal
 
@@ -110,6 +110,15 @@ Changes from the original plan in slice 1:
 3. Verify by piping sample JSON into the script: a normal prompt, two prompts
    in the same session (both land in one file), a prompt containing a ```
    fence, an active component set, and a non-git directory.
+
+Done 2026-11-18. Added before the hook: a CLAUDE.md rule for work that moves
+to a different branch or a renamed branch (rename the work folder, note the
+original branch in `plan.md`). Hook tests run in a scratch repo, all passing
+with empty stdout and exit 0: new branch with no commits, second prompt in
+the same session from a subdirectory, prompt containing a ```` fence (logged
+inside a 5-backtick fence), `feature/login` → `feature-login`, active
+component, detached HEAD → `detached-<sha>`, non-git directory (nothing
+written), malformed JSON (message on stderr only).
 
 ## Follow-up when pre-commit is merged
 

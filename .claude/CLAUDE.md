@@ -16,6 +16,7 @@ All prompts, plans, and decision logs for this repository live under `.claude/wo
 
 - When work starts on a new branch, create `.claude/work/<branch-name>/`. Replace any `/` in the branch name with `-` (e.g. `feature/login` → `.claude/work/feature-login/`). Outside a git repo, ask where files should go.
 - When I start a distinct component of a feature on that branch, create `.claude/work/<branch-name>/<component-name>/`, using a short kebab-case name for the component (confirm it with me), and write the component name to `.claude/work/<branch-name>/.active_component`. When I switch components, update that file; when I go back to branch-level work, delete it. The file is gitignored because it's per-developer state.
+- If work moves to a different branch or the branch is renamed, rename its work folder to match (with `git mv` if already committed) and note the original branch name at the top of `plan.md`.
 - Below, `<work-folder>` means the active component's folder if one is set, otherwise the branch folder.
 
 Each work folder holds:
