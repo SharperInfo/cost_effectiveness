@@ -185,34 +185,16 @@ class SavingsRequest(BaseModel):
 
 
 class MeasureSavings(BaseModel):
-    """Savings results for one measure (mirrors the CET OutputSavings table)."""
+    """Savings results for one measure (mirrors the CET OutputSavings table).
+
+    Fields are in the column order of CET's outputs.csv; the CSV endpoint's
+    header is taken from this order.
+    """
 
     # --- Identification ---
     ce_input_id: str = Field(alias="CEInputID")
     pa: str | None = Field(default=None, alias="PA")
     prg_id: str = Field(alias="PrgID")
-
-    # --- Average annual gross / net ---
-    annual_gross_kwh: float = Field(alias="AnnualGrosskWh")
-    annual_gross_kwh_site: float = Field(alias="AnnualGrosskWhSite")
-    annual_gross_kwh_water: float = Field(alias="AnnualGrosskWhWater")
-    annual_gross_kw: float = Field(alias="AnnualGrosskW")
-    annual_gross_therm: float = Field(alias="AnnualGrossTherm")
-    annual_net_kwh: float = Field(alias="AnnualNetkWh")
-    annual_net_kwh_site: float = Field(alias="AnnualNetkWhSite")
-    annual_net_kwh_water: float = Field(alias="AnnualNetkWhWater")
-    annual_net_kw: float = Field(alias="AnnualNetkW")
-    annual_net_therm: float = Field(alias="AnnualNetTherm")
-
-    # --- Lifecycle gross / net (no kW: demand savings don't accumulate) ---
-    lifecycle_gross_kwh: float = Field(alias="LifecycleGrosskWh")
-    lifecycle_gross_kwh_site: float = Field(alias="LifecycleGrosskWhSite")
-    lifecycle_gross_kwh_water: float = Field(alias="LifecycleGrosskWhWater")
-    lifecycle_gross_therm: float = Field(alias="LifecycleGrossTherm")
-    lifecycle_net_kwh: float = Field(alias="LifecycleNetkWh")
-    lifecycle_net_kwh_site: float = Field(alias="LifecycleNetkWhSite")
-    lifecycle_net_kwh_water: float = Field(alias="LifecycleNetkWhWater")
-    lifecycle_net_therm: float = Field(alias="LifecycleNetTherm")
 
     # --- First year gross / net ---
     first_year_gross_kwh: float = Field(alias="FirstYearGrosskWh")
@@ -225,6 +207,28 @@ class MeasureSavings(BaseModel):
     first_year_net_kwh_water: float = Field(alias="FirstYearNetkWhWater")
     first_year_net_kw: float = Field(alias="FirstYearNetkW")
     first_year_net_therm: float = Field(alias="FirstYearNetTherm")
+
+    # --- Lifecycle gross / net (no kW: demand savings don't accumulate) ---
+    lifecycle_gross_kwh: float = Field(alias="LifecycleGrosskWh")
+    lifecycle_gross_kwh_site: float = Field(alias="LifecycleGrosskWhSite")
+    lifecycle_gross_kwh_water: float = Field(alias="LifecycleGrosskWhWater")
+    lifecycle_gross_therm: float = Field(alias="LifecycleGrossTherm")
+    lifecycle_net_kwh: float = Field(alias="LifecycleNetkWh")
+    lifecycle_net_kwh_site: float = Field(alias="LifecycleNetkWhSite")
+    lifecycle_net_kwh_water: float = Field(alias="LifecycleNetkWhWater")
+    lifecycle_net_therm: float = Field(alias="LifecycleNetTherm")
+
+    # --- Average annual gross / net ---
+    annual_gross_kwh: float = Field(alias="AnnualGrosskWh")
+    annual_gross_kwh_site: float = Field(alias="AnnualGrosskWhSite")
+    annual_gross_kwh_water: float = Field(alias="AnnualGrosskWhWater")
+    annual_gross_kw: float = Field(alias="AnnualGrosskW")
+    annual_gross_therm: float = Field(alias="AnnualGrossTherm")
+    annual_net_kwh: float = Field(alias="AnnualNetkWh")
+    annual_net_kwh_site: float = Field(alias="AnnualNetkWhSite")
+    annual_net_kwh_water: float = Field(alias="AnnualNetkWhWater")
+    annual_net_kw: float = Field(alias="AnnualNetkW")
+    annual_net_therm: float = Field(alias="AnnualNetTherm")
 
     # --- Share of the program's first-year savings, used to allocate program costs ---
     weighted_savings: float = Field(alias="WeightedSavings")

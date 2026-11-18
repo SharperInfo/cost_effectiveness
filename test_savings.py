@@ -1,9 +1,11 @@
-"""Tests for POST /calculate_savings (port of dbo.CalcSavings, CET 25.1).
+"""Tests for POST /calculate_savings and /calculate_savings/csv (port of
+dbo.CalcSavings, CET 25.1).
 
 Run from the repo root:  pytest
 """
 
 import csv
+import io
 import re
 from pathlib import Path
 
@@ -12,10 +14,12 @@ from fastapi.testclient import TestClient
 
 import auth
 from main import THERM_CONVERSION, app
+from models import MeasureSavings
 
 TEST_USERS = {"test-user": "test-password"}
 TEST_CREDENTIALS = ("test-user", "test-password")
 ENDPOINT = "/calculate_savings"
+CSV_ENDPOINT = "/calculate_savings/csv"
 
 REFERENCE_DATA_FOLDER = Path(__file__).parent / "references" / "development_data"
 # Each cet_input_NN folder (Measure.csv) pairs with a cet_output_NN folder
@@ -40,6 +44,18 @@ def post_measures(client, measures, market_effects_benefits=None):
     return response.json()
 
 
+def post_measure_file(client, measure_file_bytes, market_effects_benefits=None):
+    form_fields = {}
+    if market_effects_benefits is not None:
+        form_fields["MarketEffectsBenefits"] = str(market_effects_benefits)
+    return client.post(
+        CSV_ENDPOINT,
+        files={"MeasureFile": ("Measure.csv", measure_file_bytes, "text/csv")},
+        data=form_fields,
+        auth=TEST_CREDENTIALS,
+    )
+
+
 def build_measure(**fields):
     return {
         "CEInputID": "CE-0001",
@@ -56,7 +72,8 @@ def build_measure(**fields):
 @pytest.mark.parametrize(
     "reference_input_folder", REFERENCE_INPUT_FOLDERS, ids=lambda folder: folder.name
 )
-def test_matches_cet_reference_output(client, reference_input_folder):
+@pytest.mark.parametrize("input_format", ["json", "csv"])
+def test_matches_cet_reference_output(client, reference_input_folder, input_format):
     reference_output_folder = (
         REFERENCE_DATA_FOLDER
         / reference_input_folder.name.replace("cet_input_", "cet_output_")
@@ -67,20 +84,28 @@ def test_matches_cet_reference_output(client, reference_input_folder):
     market_effects_percent = re.search(
         r"Market Effects: ([\d.]+)%", run_receipt_file.read_text()
     ).group(1)
+    market_effects_benefits = float(market_effects_percent) / 100
 
-    with (reference_input_folder / "Measure.csv").open() as input_file:
-        measures = [
-            {key: (None if value == "" else value) for key, value in row.items()}
-            for row in csv.DictReader(input_file, delimiter="|")
-        ]
+    measure_file_bytes = (reference_input_folder / "Measure.csv").read_bytes()
+    measures = [
+        {key: (None if value == "" else value) for key, value in row.items()}
+        for row in csv.DictReader(
+            io.StringIO(measure_file_bytes.decode()), delimiter="|"
+        )
+    ]
     with reference_output_file.open() as output_file:
         expected_by_ce_input_id = {
             row["CET_ID"]: row for row in csv.DictReader(output_file, delimiter="|")
         }
 
-    results = post_measures(
-        client, measures, market_effects_benefits=float(market_effects_percent) / 100
-    )
+    if input_format == "json":
+        results = post_measures(client, measures, market_effects_benefits)
+    else:
+        response = post_measure_file(
+            client, measure_file_bytes, market_effects_benefits
+        )
+        assert response.status_code == 200, response.text
+        results = list(csv.DictReader(io.StringIO(response.text), delimiter="|"))
 
     assert len(results) == len(measures)
     for result in results:
@@ -92,7 +117,7 @@ def test_matches_cet_reference_output(client, reference_input_folder):
             reference_field_name = field_name.replace("kW", "KW").replace(
                 "Therm", "Thm"
             )
-            assert value == pytest.approx(
+            assert float(value) == pytest.approx(
                 float(expected[reference_field_name]), rel=1e-9, abs=1e-9
             ), (result["CEInputID"], field_name)
 
@@ -284,3 +309,94 @@ def test_results_keep_input_order_and_identification(client):
 
 def test_empty_measure_list_returns_empty_list(client):
     assert post_measures(client, []) == []
+
+
+# --- CSV upload (/calculate_savings/csv) ---
+
+CSV_HEADER = "CEInputID|PrgID|ClaimYearQuarter|NumUnits|EUL_Yrs|UnitkWh1stBaseline"
+
+
+def test_csv_response_uses_cet_column_order_and_format(client):
+    response = post_measure_file(
+        client, f"{CSV_HEADER}\r\nA|P|2027Q1|2|10|100\r\n".encode()
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"].startswith("text/csv")
+    assert "savings_outputs.csv" in response.headers["content-disposition"]
+    header_line, _data_line, trailing_text = response.text.split("\r\n")
+    assert header_line == "|".join(
+        field_info.alias for field_info in MeasureSavings.model_fields.values()
+    )
+    assert trailing_text == ""
+    [result] = csv.DictReader(io.StringIO(response.text), delimiter="|")
+    assert result["CEInputID"] == "A"
+    assert result["PA"] == ""
+    assert float(result["FirstYearGrosskWh"]) == pytest.approx(200)
+    assert float(result["LifecycleGrosskWh"]) == pytest.approx(2000)
+
+
+def test_csv_blank_cells_use_defaults_and_extra_columns_are_ignored(client):
+    measure_file_text = (
+        "CEInputID|PrgID|ClaimYearQuarter|NumUnits|EUL_Yrs|UnitTherm1stBaseline"
+        "|NTGRkWh|NTGRTherm|InstallationRateTherm|IOU_AC_Territory\r\n"
+        "A|P|2027Q1|4|1|10|0.6|||PGE\r\n"
+    )
+
+    response = post_measure_file(client, measure_file_text.encode())
+
+    assert response.status_code == 200, response.text
+    [result] = csv.DictReader(io.StringIO(response.text), delimiter="|")
+    # Blank NTGRTherm falls back to NTGRkWh; blank installation rate is 1.
+    assert float(result["FirstYearNetTherm"]) == pytest.approx(4 * 10 * 0.6)
+    assert float(result["FirstYearNetkWh"]) == 0
+    assert "IOU_AC_Territory" not in result
+
+
+def test_csv_with_byte_order_mark_parses(client):
+    measure_file_bytes = f"{CSV_HEADER}\r\nA|P|2027Q1|2|10|100\r\n".encode("utf-8-sig")
+
+    response = post_measure_file(client, measure_file_bytes)
+
+    assert response.status_code == 200, response.text
+    [result] = csv.DictReader(io.StringIO(response.text), delimiter="|")
+    assert result["CEInputID"] == "A"
+
+
+def test_csv_market_effects_benefits_form_field(client):
+    measure_file_text = (
+        "CEInputID|PrgID|ClaimYearQuarter|NumUnits|EUL_Yrs|UnitkWh1stBaseline|NTGRkWh"
+        "\r\nA|P|2027Q1|1|10|100|0.7\r\n"
+    )
+
+    response = post_measure_file(
+        client, measure_file_text.encode(), market_effects_benefits=0.1
+    )
+
+    assert response.status_code == 200, response.text
+    [result] = csv.DictReader(io.StringIO(response.text), delimiter="|")
+    assert float(result["FirstYearNetkWh"]) == pytest.approx(100 * 0.8)
+
+
+def test_csv_invalid_value_reports_line_and_column(client):
+    measure_file_text = (
+        f"{CSV_HEADER}\r\nA|P|2027Q1|2|10|100\r\nB|P|2027Q1|lots|10|100\r\n"
+    )
+
+    response = post_measure_file(client, measure_file_text.encode())
+
+    assert response.status_code == 422
+    [error_message] = response.json()["detail"]
+    assert error_message.startswith("line 3, NumUnits:")
+
+
+def test_csv_header_only_returns_header_only(client):
+    response = post_measure_file(client, f"{CSV_HEADER}\r\n".encode())
+
+    assert response.status_code == 200, response.text
+    assert response.text.split("\r\n") == [
+        "|".join(
+            field_info.alias for field_info in MeasureSavings.model_fields.values()
+        ),
+        "",
+    ]

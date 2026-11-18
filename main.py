@@ -1,6 +1,10 @@
+import csv
+import io
 from collections import defaultdict
+from typing import Annotated
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Response, UploadFile
+from pydantic import ValidationError
 
 from auth import require_user
 from models import Item, Measure, MeasureSavings, ProgramCost, SavingsRequest
@@ -168,8 +172,10 @@ def calculate_measure_savings(
     return savings
 
 
-@app.post("/calculate_savings", response_model=list[MeasureSavings])
-async def calculate_savings(savings_request: SavingsRequest):
+def calculate_savings_for_request(
+    savings_request: SavingsRequest,
+) -> list[MeasureSavings]:
+    """Calculate savings for every measure, then each one's WeightedSavings."""
     savings_by_measure = [
         calculate_measure_savings(measure, savings_request.market_effects_benefits)
         for measure in savings_request.measures
@@ -210,6 +216,61 @@ async def calculate_savings(savings_request: SavingsRequest):
             )
         )
     return results
+
+
+@app.post("/calculate_savings", response_model=list[MeasureSavings])
+async def calculate_savings(savings_request: SavingsRequest):
+    return calculate_savings_for_request(savings_request)
+
+
+@app.post("/calculate_savings/csv")
+async def calculate_savings_csv(
+    measure_file: Annotated[UploadFile, File(alias="MeasureFile")],
+    market_effects_benefits: Annotated[
+        float, Form(alias="MarketEffectsBenefits")
+    ] = 0.0,
+):
+    """Calculate savings from a CET Measure.csv (pipe-delimited) and return a
+    pipe-delimited CSV of results."""
+    # utf-8-sig drops the byte-order mark Excel sometimes adds.
+    measure_file_text = (await measure_file.read()).decode("utf-8-sig")
+    measure_rows = [
+        {column: (None if value == "" else value) for column, value in row.items()}
+        for row in csv.DictReader(io.StringIO(measure_file_text), delimiter="|")
+    ]
+    try:
+        savings_request = SavingsRequest.model_validate(
+            {"MarketEffectsBenefits": market_effects_benefits, "Measures": measure_rows}
+        )
+    except ValidationError as validation_error:
+        # Report errors by CSV line (the header is line 1) and column name.
+        error_messages = []
+        for error in validation_error.errors():
+            if error["loc"][0] == "Measures" and len(error["loc"]) >= 3:
+                csv_line_number = error["loc"][1] + 2
+                column_name = error["loc"][2]
+                error_messages.append(
+                    f"line {csv_line_number}, {column_name}: {error['msg']}"
+                )
+            else:
+                error_messages.append(f"{error['loc']}: {error['msg']}")
+        raise HTTPException(status_code=422, detail=error_messages)
+
+    results = calculate_savings_for_request(savings_request)
+
+    output_buffer = io.StringIO()
+    # csv.writer's default line terminator is CRLF, matching CET's output files.
+    output_writer = csv.writer(output_buffer, delimiter="|")
+    output_writer.writerow(
+        field_info.alias for field_info in MeasureSavings.model_fields.values()
+    )
+    for result in results:
+        output_writer.writerow(result.model_dump(by_alias=True).values())
+    return Response(
+        content=output_buffer.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="savings_outputs.csv"'},
+    )
 
 
 @app.post("/calculate_emissions")
